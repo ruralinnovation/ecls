@@ -1,3 +1,6 @@
+This is a fork from the repo linked here: https://simonejdemyr.com/r-tutorials/statistics/tutorial8.html
+
+It was forked to see if it will be useful for the project who win build 2 scales project and can be archived when needed when this project is complet. 
 
 # Processing Data from the Early Childhood Longitudinal Study #
 
@@ -26,8 +29,8 @@ Use, and the download should begin.
 '04075-0001-Data.por'. Place this file directly in the folder
 'data-raw' from your copy of this repository (downloaded in step 1).
 5. Open 'R/ecls-clean.R'.
-   * Set your working directory to the folder you downloaded and
-     unzipped in step 1 (e.g., `setwd('~/Desktop/ecls-master')`.
+   ~~* Set your working directory to the folder you downloaded and
+     unzipped in step 1 (e.g., `setwd('~/Desktop/ecls-master')`.~~
    * Make sure you have installed all the packages loaded in the beginning of
      this script. If not, you can install them using
      `install.packages(c('tidyverse', 'haven', 'sjmisc'))`.
