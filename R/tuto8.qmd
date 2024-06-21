@@ -1,0 +1,167 @@
+---
+title: 'R Tutorial 8: Propensity Score Matching'
+date: today
+engine: knitr
+---
+
+Other ressources: 
+
+- https://www.andrewheiss.com/blog/2021/12/18/bayesian-propensity-scores-weights/ (not so much for the bayesian part)
+
+- https://www.r-causal.org/
+
+- https://cran.r-project.org/web/packages/MatchIt/vignettes/MatchIt.html
+
+(a bunch of vignette that I do not have time to read, seems good)
+
+Idea: students that attends chatolic school are different on average, hence if we want to take into account the 'causal estimates of Catholic schooling' we need to take that into account.
+
+We are trying to see if catholic school have causal effect on "student achievement".
+
+"catholic school" ---> "student achievement"
+
+Here being "catholic school" is considered "Treated" and public school is "Control"
+
+```{r}
+#| label: load package
+library(MatchIt) # needed to install this one
+library(dplyr)
+library(ggplot2)
+```
+
+```{r}
+#| label: load data 
+ecls <- read.csv("data-processed/ecls.csv")
+```
+
+# Pre-analysis using non-matched data
+
+## Difference-in-means: outcome variable
+
+"student achievement" = **standardized** math score
+
+independent variable of interest: catholic (1 = student went to catholic school; 0 = student went to public school).
+
+```{r}
+ecls |>  
+  summarise(n_students = n(),
+            mean_math = mean(c5r2mtsc_std),
+            std_error = sd(c5r2mtsc_std) / sqrt(n_students),
+            .by = catholic)
+```
+
+t-test
+
+```{r}
+with(ecls, t.test(c5r2mtsc_std ~ catholic))
+```
+
+## Difference-in-means: pre-treatment covariates
+
+5 covariates:
+
+- race_white: Is the student white (1) or not (0)?
+
+- p5hmage: Mother’s age
+
+- w3income: Family income
+
+- p5numpla: Number of places the student has lived for at least 4 months
+
+- w3momed_hsb: Is the mother’s education level high-school or below (1) or some college or more (0)?
+
+```{r}
+ecls_cov <- c('race_white', 'p5hmage', 'w3income', 'p5numpla', 'w3momed_hsb')
+ecls |> 
+  group_by(catholic) |> 
+  select(one_of(ecls_cov))|> 
+  summarise_all(funs(mean(., na.rm = T))) # deprecated 
+```
+
+Folks in catholic school tend to have more income, more white, slightly stay in one place and the mother is more educated.
+
+#  Propensity score estimation
+
+```{r}
+# why do we divide by 1K, should we standardize instead?
+ecls <- ecls |> mutate(w3income_1k = w3income / 1000)
+# I prefer drawing the confounder first, etc first and even start 
+# with a more simple model, It seems this model has confounder  
+# see do-calculus
+# we can use dagitty 
+m_ps <- glm(catholic ~ race_white + w3income_1k + p5hmage + p5numpla + w3momed_hsb,
+            family = binomial(), data = ecls)
+summary(m_ps)
+```
+
+Quite easy:
+
+```{r}
+prs_df <- data.frame(pr_score = predict(m_ps, type = "response"),
+                     catholic = m_ps$model$catholic)
+head(prs_df)
+```
+
+## Examining the region of common support
+
+```{r}
+labs <- paste("Actual school type attended:", c("Catholic", "Public"))
+prs_df |>
+  mutate(catholic = ifelse(catholic == 1, labs[1], labs[2])) |>
+  ggplot(aes(x = pr_score)) +
+  geom_histogram(color = "white") +
+  facet_wrap(~catholic) +
+  xlab("Probability of going to Catholic school") +
+  theme_bw()
+```
+
+Is it supposed to be good?
+
+# Executing a matching algorithm
+
+```{r}
+ecls_nomiss <- ecls %>%  # MatchIt does not allow missing values
+  select(c5r2mtsc_std, catholic, one_of(ecls_cov)) %>%
+  na.omit()
+
+mod_match <- matchit(catholic ~ race_white + w3income + p5hmage + p5numpla + w3momed_hsb,
+                     method = "nearest", data = ecls_nomiss)
+```
+
+```{r}
+summary(mod_match)
+plot(mod_match)
+```
+
+
+```{r}
+dta_m <- match.data(mod_match)
+dim(dta_m)
+head(dta_m)
+```
+
+(I have 10 columns)
+
+# Examining covariate balance in the matched sample
+
+1. visual inspection: it seems" "If matching is done well, the treatment and control groups will have (near) identical means of each covariate at each value of the propensity score." 
+
+2. Difference in means
+
+```{r}
+dta_m |>
+  group_by(catholic) |>
+  select(one_of(ecls_cov)) |>
+  summarise_all(funs(mean)) # still deprecated
+```
+
+3. Average absolute standardized difference (i did not try but get it)
+
+# Estimating treatment effects
+
+Use dta_ma
+
+```{r}
+lm_treat1 <- lm(c5r2mtsc_std ~ catholic, data = dta_m)
+summary(lm_treat1)
+```
