@@ -3,7 +3,7 @@
 # Study. The output is saved to 'data-processed/ecls.csv'.
 
 # Begin by changing your working directory as necessary here
-setwd('~/Dropbox/ecls')
+# setwd('~/Dropbox/ecls')
 
 # Load required packages ('install.packages()' first as necessary)
 library(tidyverse)
